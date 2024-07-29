@@ -170,8 +170,6 @@ class GatewayAuraAMM(GatewayEVMAMM):
                 self.logger().error(str(e), exc_info=True)
 
     async def update_order_status(self, tracked_orders: List[GatewayInFlightOrder]):
-        self.logger().error("SELFFFFFFF: ", self)
-        self.logger().error("tracked_orders: ", tracked_orders)
         """
         Calls REST API to get status update for each in-flight amm orders.
         """

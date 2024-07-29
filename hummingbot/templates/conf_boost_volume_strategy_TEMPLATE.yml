@@ -1,0 +1,36 @@
+##########################################
+###   Increase Trading Volume strategy config   ###
+##########################################
+
+template_version: 6
+strategy: null
+
+# The following configurations are only required for the Increase Trading Volume trading strategy
+
+# Connectors and markets parameters
+connector_1: null
+market_1: null
+
+order_amount: null
+
+# A buffer for which to adjust order price for higher chance of the order getting filled.
+# This is important for AMM which transaction takes a long time where a slippage is acceptable rather having
+# the transaction get rejected. The submitted order price will be adjust higher (by percentage value) for buy order
+# and lower for sell order. (Enter 1 for 1%)
+market_1_slippage_buffer: null
+
+# Number of orders to place
+number_of_orders: null
+
+# A flag (true/false), if true would enable a price shim feature on the AMM connector to allow developer to simulate
+# different prices on the AMM market. This is used for development and testing purpose only.
+debug_price_shim: false
+
+# After how many seconds should blockchain transactions be cancelled if they are not included in a block?
+gateway_transaction_cancel_interval: 600
+
+# What rate source should be used for quote assets pair - between fixed_rate_source and rate_oracle_source?
+rate_oracle_enabled: true
+
+# What is the fixed_rate used to convert quote assets?
+quote_conversion_rate: 1
