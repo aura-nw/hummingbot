@@ -62,7 +62,7 @@ class BoostVolumeStrategy(StrategyPyBase):
                     market_info_1: MarketTradingPairTuple,
                     order_amount: Decimal,
                     market_1_slippage_buffer: Decimal = Decimal("0"),
-                    number_of_orders: int = 10,
+                    number_of_orders: int = 0,
                     status_report_interval: float = 900,
                     gateway_transaction_cancel_interval: int = 600,
                     rate_source: Optional[RateOracle] = RateOracle.get_instance(),

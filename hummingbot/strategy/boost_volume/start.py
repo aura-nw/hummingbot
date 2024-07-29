@@ -16,6 +16,7 @@ def start(self):
     market_1 = boost_volume_config_map.get("market_1").value
     order_amount = boost_volume_config_map.get("order_amount").value
     market_1_slippage_buffer = boost_volume_config_map.get("market_1_slippage_buffer").value / Decimal("100")
+    number_of_orders = boost_volume_config_map.get("number_of_orders").value
     # debug_price_shim = boost_volume_config_map.get("debug_price_shim").value
     gateway_transaction_cancel_interval = boost_volume_config_map.get("gateway_transaction_cancel_interval").value
     rate_oracle_enabled = boost_volume_config_map.get("rate_oracle_enabled").value
@@ -46,6 +47,7 @@ def start(self):
     self.strategy.init_params(market_info_1=market_info_1,
                               order_amount=order_amount,
                               market_1_slippage_buffer=market_1_slippage_buffer,
+                              number_of_orders=number_of_orders,
                               gateway_transaction_cancel_interval=gateway_transaction_cancel_interval,
                               rate_source=rate_source,
                               )
