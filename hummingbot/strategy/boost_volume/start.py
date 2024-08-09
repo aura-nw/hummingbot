@@ -14,7 +14,10 @@ from hummingbot.strategy.market_trading_pair_tuple import MarketTradingPairTuple
 def start(self):
     connector_1 = boost_volume_config_map.get("connector_1").value.lower()
     market_1 = boost_volume_config_map.get("market_1").value
-    order_amount = boost_volume_config_map.get("order_amount").value
+    order_amount_from = boost_volume_config_map.get("order_amount_from").value
+    order_amount_to = boost_volume_config_map.get("order_amount_to").value
+    delay_from = boost_volume_config_map.get("delay_from").value
+    delay_range = boost_volume_config_map.get("delay_range").value
     market_1_slippage_buffer = boost_volume_config_map.get("market_1_slippage_buffer").value / Decimal("100")
     number_of_orders = boost_volume_config_map.get("number_of_orders").value
     # debug_price_shim = boost_volume_config_map.get("debug_price_shim").value
@@ -45,7 +48,10 @@ def start(self):
 
     self.strategy = BoostVolumeStrategy()
     self.strategy.init_params(market_info_1=market_info_1,
-                              order_amount=order_amount,
+                              order_amount_from=order_amount_from,
+                              order_amount_to=order_amount_to,
+                              delay_from=delay_from,
+                              delay_range=delay_range,
                               market_1_slippage_buffer=market_1_slippage_buffer,
                               number_of_orders=number_of_orders,
                               gateway_transaction_cancel_interval=gateway_transaction_cancel_interval,

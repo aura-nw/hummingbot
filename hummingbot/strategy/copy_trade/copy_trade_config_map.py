@@ -16,38 +16,48 @@ def exchange_on_validated(value: str) -> None:
 
 
 def market_1_validator(value: str) -> None:
-    exchange = boost_volume_config_map["connector_1"].value
+    exchange = copy_trade_config_map["connector_1"].value
     return validate_market_trading_pair(exchange, value)
 
 
+def validate_ethereum_wallet_address(value: str) -> None:
+    if not value.startswith("0x") or len(value) != 42:
+        raise ValueError("Invalid Ethereum wallet address.")
+
+
+def validate_type_of_copy(value: str) -> None:
+    if value not in {"percentage", "fixed_amount"}:
+        raise ValueError("Invalid type of copy.")
+
+
 def market_1_on_validated(value: str) -> None:
-    requried_connector_trading_pairs[boost_volume_config_map["connector_1"].value] = [value]
+    requried_connector_trading_pairs[copy_trade_config_map["connector_1"].value] = [value]
 
 
 def market_1_prompt() -> str:
-    connector = boost_volume_config_map.get("connector_1").value
+    connector = copy_trade_config_map.get("connector_1").value
     example = AllConnectorSettings.get_example_pairs().get(connector)
     return "Enter the token trading pair you would like to trade on %s%s >>> " \
            % (connector, f" (e.g. {example})" if example else "")
 
 
 def order_amount_from_prompt() -> str:
-    trading_pair = boost_volume_config_map["market_1"].value
+    trading_pair = copy_trade_config_map["market_1"].value
     base_asset, quote_asset = trading_pair.split("-")
     return f"What is the minimum amount of {base_asset} per order? >>> "
 
 
 def order_amount_to_prompt() -> str:
-    trading_pair = boost_volume_config_map["market_1"].value
+    trading_pair = copy_trade_config_map["market_1"].value
     base_asset, quote_asset = trading_pair.split("-")
     return f"What is the maximum amount of {base_asset} per order? >>> "
 
 
-boost_volume_config_map = {
+copy_trade_config_map = {
     "strategy": ConfigVar(
         key="strategy",
         prompt="",
-        default="boost_volume"),
+        default="copy_trade"),
     "connector_1": ConfigVar(
         key="connector_1",
         prompt="Enter your first connector (Exchange/AMM/CLOB) >>> ",
@@ -60,52 +70,45 @@ boost_volume_config_map = {
         prompt_on_new=True,
         validator=market_1_validator,
         on_validated=market_1_on_validated),
-    "order_amount_from": ConfigVar(
-        key="order_amount_from",
-        prompt=order_amount_from_prompt,
-        type_str="decimal",
-        validator=lambda v: validate_decimal(v, Decimal("0")),
-        prompt_on_new=True),
-    "order_amount_to": ConfigVar(
-        key="order_amount_to",
-        prompt=order_amount_to_prompt,
-        type_str="decimal",
-        validator=lambda v: validate_decimal(v, Decimal("0")),
-        prompt_on_new=True),
-    "delay_from": ConfigVar(
-        key="delay_from",
-        prompt="What is the minimum delay between orders? (Enter time in seconds) >>> ",
-        default=0,
-        validator=lambda v: validate_int(v, min_value=0, inclusive=True),
-        type_str="int",
-        prompt_on_new=True),
-    "delay_range": ConfigVar(
-        key="delay_range",
-        prompt="What is the range of delay? (Enter time in seconds) >>> ",
-        default=0,
-        validator=lambda v: validate_int(v, min_value=0, inclusive=True),
-        type_str="int",
-        prompt_on_new=True),
+    "wallet_to_copy": ConfigVar(
+        key="wallet_to_copy",
+        prompt="Enter the wallet address to copy trades >>> ",
+        prompt_on_new=True,
+        validator=validate_ethereum_wallet_address,
+        type_str="str"),
+    "type_of_copy": ConfigVar(
+        key="type_of_copy",
+        prompt="Enter the type of copy (percentage/fixed_amount) >>> ",
+        prompt_on_new=True,
+        validator= validate_type_of_copy),
+    "percentage": ConfigVar(
+        key="percentage",
+        prompt="Enter the percentage of the trade to copy (Enter 1 for 1%) >>> ",
+        prompt_on_new=True,
+        required_if=lambda: copy_trade_config_map.get("type_of_copy").value == "percentage",
+        default=Decimal(0),
+        validator=lambda v: validate_decimal(v),
+        type_str="decimal"),
+    "fixed_amount": ConfigVar(
+        key="copy_fixed_amount",
+        prompt="Enter the fixed amount of the trade to copy >>> ",
+        prompt_on_new=True,
+        required_if=lambda: copy_trade_config_map.get("type_of_copy").value == "fixed_amount",
+        default=Decimal(0),
+        validator=lambda v: validate_decimal(v),
+        type_str="decimal"),
     "market_1_slippage_buffer": ConfigVar(
         key="market_1_slippage_buffer",
         prompt="How much buffer do you want to add to the price to account for slippage for orders on the first market "
                "(Enter 1 for 1%)? >>> ",
         prompt_on_new=True,
-        default=lambda: Decimal(1) if boost_volume_config_map["connector_1"].value in sorted(
+        default=lambda: Decimal(1) if copy_trade_config_map["connector_1"].value in sorted(
             AllConnectorSettings.get_gateway_amm_connector_names().union(
                 AllConnectorSettings.get_gateway_clob_connector_names()
             )
         ) else Decimal(0),
         validator=lambda v: validate_decimal(v),
         type_str="decimal"),
-    "number_of_orders": ConfigVar(
-        key="number_of_orders",
-        prompt="How many orders do you want to place? >>> ",
-        prompt_on_new=True,
-        default=1,
-        validator=lambda v: validate_int(v, min_value=1, inclusive=True),
-        type_str="int"
-    ),
     "debug_price_shim": ConfigVar(
         key="debug_price_shim",
         prompt="Do you want to enable the debug price shim for integration tests? If you don't know what this does "
@@ -123,7 +126,7 @@ boost_volume_config_map = {
     "rate_oracle_enabled": ConfigVar(
         key="rate_oracle_enabled",
         prompt="Do you want to use the rate oracle? (Yes/No) >>> ",
-        default=True,
+        default=False,
         validator=validate_bool,
         type_str="bool"),
     "quote_conversion_rate": ConfigVar(

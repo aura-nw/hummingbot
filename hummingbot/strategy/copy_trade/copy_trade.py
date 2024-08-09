@@ -1,9 +1,10 @@
 import asyncio
 import logging
-import random
 from decimal import Decimal
 from functools import lru_cache
 from typing import Callable, Dict, List, Optional, Tuple, cast
+
+import pymongo
 
 from hummingbot.client.settings import AllConnectorSettings, GatewayConnectionSetting
 from hummingbot.connector.connector_base import ConnectorBase
@@ -31,19 +32,18 @@ s_decimal_zero = Decimal(0)
 amm_logger = None
 
 
-class BoostVolumeStrategy(StrategyPyBase):
+class CopyTradeStrategy(StrategyPyBase):
     """
-    This is a basic boosting strategy which can be used for most types of connectors (CEX, DEX or AMM).
+    This is a basic copying strategy which can be used for most types of connectors (CEX, DEX or AMM).
     """
 
     _market_info_1: MarketTradingPairTuple
-    _order_amount_from: Decimal
-    _order_amount_to: Decimal
-    _delay_from: int
-    _delay_range: int
+    _wallet_to_copy: str
+    _type_of_copy: str
+    _percentage: Decimal
+    _fixed_amount: Decimal
     _market_1_slippage_buffer: Decimal
-    _number_of_orders: int
-    _last_no_boost_reported: float
+    _last_no_copy_reported: float
     _all_markets_ready: bool
     _ev_loop: asyncio.AbstractEventLoop
     _main_task: Optional[asyncio.Task]
@@ -64,10 +64,10 @@ class BoostVolumeStrategy(StrategyPyBase):
 
     def init_params(self,
                     market_info_1: MarketTradingPairTuple,
-                    order_amount_from: Decimal,
-                    order_amount_to: Decimal,
-                    delay_from: int,
-                    delay_range: int,
+                    wallet_to_copy: str,
+                    type_of_copy: str,
+                    percentage: Decimal,
+                    fixed_amount: Decimal,
                     market_1_slippage_buffer: Decimal = Decimal("0"),
                     number_of_orders: int = 0,
                     status_report_interval: float = 900,
@@ -76,14 +76,14 @@ class BoostVolumeStrategy(StrategyPyBase):
                     ):
 
         self._market_info_1 = market_info_1
-        self._order_amount_from = order_amount_from
-        self._order_amount_to = order_amount_to
-        self._delay_from = delay_from
-        self._delay_range = delay_range
+        self._wallet_to_copy = wallet_to_copy
+        self._type_of_copy = type_of_copy
+        self._percentage = percentage
+        self._fixed_amount = fixed_amount
         self._market_1_slippage_buffer = market_1_slippage_buffer
         self._number_of_orders = number_of_orders
-        self._last_no_boost_reported = 0
-        self._all_boost_proposals = None
+        self._last_no_copy_reported = 0
+        self._all_copy_proposals = None
         self._all_markets_ready = False
 
         self._ev_loop = asyncio.get_event_loop()
@@ -108,36 +108,36 @@ class BoostVolumeStrategy(StrategyPyBase):
         self._all_markets_ready = value
 
     @property
-    def order_amount_from(self) -> Decimal:
-        return self._order_amount_from
+    def wallet_to_copy(self) -> str:
+        return self._wallet_to_copy
 
-    @order_amount_from.setter
-    def order_amount_from(self, value: Decimal):
-        self._order_amount_from = value
-
-    @property
-    def order_amount_to(self) -> Decimal:
-        return self._order_amount_to
-
-    @order_amount_to.setter
-    def order_amount_to(self, value: Decimal):
-        self._order_amount_to = value
+    @wallet_to_copy.setter
+    def wallet_to_copy(self, value: str):
+        self._wallet_to_copy = value
 
     @property
-    def delay_from(self) -> int:
-        return self._delay_from
+    def type_of_copy(self) -> str:
+        return self._type_of_copy
 
-    @delay_from.setter
-    def delay_from(self, value: int):
-        self._delay_from = value
+    @type_of_copy.setter
+    def type_of_copy(self, value: str):
+        self._type_of_copy = value
 
     @property
-    def delay_range(self) -> int:
-        return self._delay_range
+    def percentage(self) -> Decimal:
+        return self._percentage
 
-    @delay_range.setter
-    def delay_range(self, value: int):
-        self._delay_range = value
+    @percentage.setter
+    def percentage(self, value: Decimal):
+        self._percentage = value
+
+    @property
+    def fixed_amount(self) -> Decimal:
+        return self._fixed_amount
+
+    @fixed_amount.setter
+    def fixed_amount(self, value: Decimal):
+        self._fixed_amount = value
 
     @property
     def rate_source(self) -> Optional[RateOracle]:
@@ -169,7 +169,9 @@ class BoostVolumeStrategy(StrategyPyBase):
         Clock tick entry point, is run every second (on normal tick setting).
         :param timestamp: current tick timestamp
         """
+        print("tickkkkkk")
         if not self.all_markets_ready:
+            print("not ready")
             self.all_markets_ready = all([market.ready for market in self.active_markets])
             if not self.all_markets_ready:
                 if int(timestamp) % 10 == 0:  # prevent spamming by logging every 10 secs
@@ -181,47 +183,26 @@ class BoostVolumeStrategy(StrategyPyBase):
             else:
                 self.logger().info("Markets are ready. Trading started.")
 
-        if self.ready_for_new_boost_trades():
+        if self.ready_for_new_copy_trade_trades():
             if self._main_task is None or self._main_task.done():
                 self._main_task = safe_ensure_future(self.main())
 
     async def main(self):
         # Get price of the first market
-        market: GatewayEVMAMM = cast(GatewayEVMAMM, self._market_info_1.market)
-        slippage_buffer: Decimal = self._market_1_slippage_buffer
-        number_of_orders: int = self._number_of_orders
+        # market: GatewayEVMAMM = cast(GatewayEVMAMM, self._market_info_1.market)
+        # slippage_buffer: Decimal = self._market_1_slippage_buffer
+        # number_of_orders: int = self._number_of_orders
         """
-        Execute a boost volume trade. If trade completes, it will place another trade. Until all trades are completed.
+        Execute a copy trade trade. If trade completes, it will place another trade. Until all trades are completed.
         """
-        for i in range(number_of_orders):
-            slippage_buffer_factor: Decimal = Decimal(1) + slippage_buffer
-            # BUY
-            random_amount_buy: Decimal = Decimal(round(random.uniform(float(self._order_amount_from), float(self._order_amount_to)), 5))
-            random_delay_value_buy: int = random.randint(self._delay_from, self._delay_from + self._delay_range)
-            price_1: Decimal = await market.get_order_price(self._market_info_1.trading_pair, True, random_amount_buy, ignore_shim=True)
-            price_1 = price_1.quantize(Decimal("0.00000001"))
-            price_1 *= slippage_buffer_factor
-            print(f"random_amount_buy: {type(random_amount_buy)}")
-            print(f"price_1: {type(price_1)}")
-            print(f"random_delay_value_buy: {random_delay_value_buy}")
-            await self.place_boost_order(self._market_info_1, True, random_amount_buy, price_1)
-            await asyncio.sleep(random_delay_value_buy)
-            # log done
-            self.log_with_clock(logging.INFO, f"Placed buy order {i + 1}/{number_of_orders}: {random_amount_buy} AURA")
-            # SELL
-            random_amount_sell: Decimal = Decimal(round(random.uniform(float(self._order_amount_from), float(self._order_amount_to)), 5))
-            random_delay_value_sell: int = random.randint(self._delay_from, self._delay_from + self._delay_range)
-            slippage_buffer_factor = Decimal(1) - slippage_buffer
-            price_1: Decimal = await market.get_order_price(self._market_info_1.trading_pair, False, random_amount_sell, ignore_shim=True)
-            price_1 = price_1.quantize(Decimal("0.00000001"))
-            price_1 *= slippage_buffer_factor
-            print(f"random_amount_sell: {random_amount_sell}")
-            print(f"price_1: {price_1}")
-            print(f"random_delay_value_sell: {random_delay_value_sell}")
-            await self.place_boost_order(self._market_info_1, False, random_amount_sell, price_1)
-            await asyncio.sleep(random_delay_value_sell)
-            # log done
-            self.log_with_clock(logging.INFO, f"Placed sell order {i + 1}/{number_of_orders}: {random_amount_sell} AURA")
+        myclient = pymongo.MongoClient("mongodb+srv://haitranwang:z0PkCWCQPDrVo3LW@cluster0.j82ajdm.mongodb.net")
+        mydb = myclient["test"]
+        mycol = mydb["transactions"]
+        myquery = {"from": "aura1vqu8rska6swzdmnhf90zuv0xmelej4lqkyjkk3"}
+        mydoc = mycol.find(myquery)
+
+        for x in mydoc:
+            print(x)
 
     async def apply_gateway_transaction_cancel_interval(self):
         # XXX (martin_kou): Concurrent cancellations are not supported before the nonce architecture is fixed.
@@ -233,7 +214,7 @@ class BoostVolumeStrategy(StrategyPyBase):
         for gateway in gateway_connectors:
             await gateway.cancel_outdated_orders(self._gateway_transaction_cancel_interval)
 
-    async def place_boost_order(
+    async def place_copy_order(
             self,
             market_info: MarketTradingPairTuple,
             is_buy: bool,
@@ -258,7 +239,7 @@ class BoostVolumeStrategy(StrategyPyBase):
 
         return place_order_fn(market_info, amount, market_info.market.get_taker_order_type(), order_price)
 
-    def ready_for_new_boost_trades(self) -> bool:
+    def ready_for_new_copy_trade_trades(self) -> bool:
         """
         Returns True if there is no outstanding unfilled order.
         """
