@@ -28,6 +28,8 @@ class CreateMidVolumnConfig(BaseClientModel):
     maximum_amount_limit : int = Field(400, client_data=ClientFieldData(prompt_on_new=True, prompt=lambda mi: "Maximum amount limit to random"))
 
     cron_expression: str = Field("* * * * *", client_data=ClientFieldData(prompt_on_new=True, prompt=lambda mi: "Cron expression to run"))
+
+    percent_price_order: float = Field(0, client_data=ClientFieldData(prompt_on_new=True, prompt=lambda mi: "Percent order price to change"))
 class CreateMidVolumn(ScriptStrategyBase):  
     numberBuyOrder = 0
     numberSellOrder = 0
@@ -46,11 +48,21 @@ class CreateMidVolumn(ScriptStrategyBase):
             self.logger().debug(f"Current time: {current_time}, Next time: ${self.next_time}")
             if (self.next_time == None or current_time >= self.next_time):
                 self.logger().debug('Satisfiy cron')
-
-                # Cancel all active orders
                 self.cancel_all_orders()
-                mid_price = Decimal(connector.get_mid_price(self.config.trading_pair))
+                mid_price = connector.get_mid_price(self.config.trading_pair)
+                best_bid_price = connector.get_price(self.config.trading_pair, False)
+                best_ask_price = connector.get_price(self.config.trading_pair, True)
+                # order_price = mid_price
+                order_price = Decimal(random.uniform(float(best_bid_price), float(best_ask_price)))
+                # if (bool(random.getrandbits(1))):
+                #     order_price = Decimal(order_price + Decimal(self.config.percent_price_order) * mid_price)
+                # else: 
+                #     order_price = Decimal(order_price - Decimal(self.config.percent_price_order) * mid_price)
+
                 self.logger().info(f"Mid price: {mid_price}")
+                self.logger().info(f"Best bid: {best_bid_price}")
+                self.logger().info(f"Best ask: {best_ask_price}")
+                self.logger().info(f"Order price: {order_price}")
                 if (self.numberBuyOrder == 0 & self.numberSellOrder == 0):
                     amount = Decimal(random.randint(self.config.minimum_amount_limit, self.config.maximum_amount_limit))
                     if (bool(random.getrandbits(1))):
@@ -58,30 +70,30 @@ class CreateMidVolumn(ScriptStrategyBase):
                                     amount=amount,
                                     trading_pair=self.config.trading_pair,
                                     order_type=OrderType.LIMIT,
-                                    price=mid_price,
+                                    price=order_price,
                                     )
                         self.numberBuyOrder += 1
                         self.sell(connector_name=connector_name,
                                     amount=amount,
                                     trading_pair=self.config.trading_pair,
                                     order_type=OrderType.LIMIT,
-                                    price=mid_price)
+                                    price=order_price)
                         self.numberSellOrder += 1
                     else: 
                         self.sell(connector_name=connector_name,
                                     amount=amount,
                                     trading_pair=self.config.trading_pair,
                                     order_type=OrderType.LIMIT,
-                                    price=mid_price)
+                                    price=order_price)
                         self.numberSellOrder += 1
                         self.buy(connector_name=connector_name,
                                     amount=amount,
                                     trading_pair=self.config.trading_pair,
                                     order_type=OrderType.LIMIT,
-                                    price=mid_price,
+                                    price=order_price,
                                     )
                         self.numberBuyOrder += 1
-                cron = croniter.croniter(self.config.cron_expression, current_time)
+                cron = croniter.croniter(self.config.cron_expression, current_time, second_at_beginning=True)
                 self.next_time = cron.get_next()
                 self.logger().debug(f"Next time is {self.next_time}")
             else:
@@ -96,6 +108,8 @@ class CreateMidVolumn(ScriptStrategyBase):
     def cancel_all_orders(self):
         for order in self.get_active_orders(connector_name=self.config.exchange):
             self.cancel(self.config.exchange, order.trading_pair, order.client_order_id)
+        self.numberBuyOrder = 0
+        self.numberSellOrder = 0
 
     def on_stop(self):
         self.cancel_all_orders()
