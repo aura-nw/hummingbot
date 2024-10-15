@@ -53,20 +53,34 @@ class CreateMidVolumn(ScriptStrategyBase):
                 self.logger().info(f"Mid price: {mid_price}")
                 if (self.numberBuyOrder == 0 & self.numberSellOrder == 0):
                     amount = Decimal(random.randint(self.config.minimum_amount_limit, self.config.maximum_amount_limit))
-                    self.buy(connector_name=connector_name,
-                                amount=amount,
-                                trading_pair=self.config.trading_pair,
-                                order_type=OrderType.LIMIT,
-                                price=mid_price,
-                                )
-                    self.numberBuyOrder += 1
-                    self.sell(connector_name=connector_name,
-                                amount=amount,
-                                trading_pair=self.config.trading_pair,
-                                order_type=OrderType.LIMIT,
-                                price=mid_price)
-                    self.numberSellOrder += 1
-
+                    if (bool(random.getrandbits(1))):
+                        self.buy(connector_name=connector_name,
+                                    amount=amount,
+                                    trading_pair=self.config.trading_pair,
+                                    order_type=OrderType.LIMIT,
+                                    price=mid_price,
+                                    )
+                        self.numberBuyOrder += 1
+                        self.sell(connector_name=connector_name,
+                                    amount=amount,
+                                    trading_pair=self.config.trading_pair,
+                                    order_type=OrderType.LIMIT,
+                                    price=mid_price)
+                        self.numberSellOrder += 1
+                    else: 
+                        self.sell(connector_name=connector_name,
+                                    amount=amount,
+                                    trading_pair=self.config.trading_pair,
+                                    order_type=OrderType.LIMIT,
+                                    price=mid_price)
+                        self.numberSellOrder += 1
+                        self.buy(connector_name=connector_name,
+                                    amount=amount,
+                                    trading_pair=self.config.trading_pair,
+                                    order_type=OrderType.LIMIT,
+                                    price=mid_price,
+                                    )
+                        self.numberBuyOrder += 1
                 cron = croniter.croniter(self.config.cron_expression, current_time)
                 self.next_time = cron.get_next()
                 self.logger().debug(f"Next time is {self.next_time}")
