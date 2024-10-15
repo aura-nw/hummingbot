@@ -112,6 +112,7 @@ def main():
         "yarl",
         "pandas_ta==0.3.14b",
         "xrpl-py==3.0.0",
+        "croniter",
     ]
 
     cython_kwargs = {
