@@ -3,7 +3,7 @@ name: Build Development Docker image
 on:
   workflow_dispatch:
   push:
-    branches: [feat/create-new-strategy]
+    branches: [feat/create-new-strategy, feat/create-new-strategy-bingx]
 
 jobs:
   build:
