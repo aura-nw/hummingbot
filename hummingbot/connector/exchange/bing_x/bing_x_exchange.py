@@ -265,14 +265,14 @@ class BingXExchange(ExchangePyBase):
                 max_notional_size = rule.get("maxNotional")
                 min_order_size = rule.get("minQty")
                 max_order_size = rule.get("maxQty")
-
-                retval.append(
-                    TradingRule(trading_pair,
-                                min_order_size=Decimal(min_order_size),
-                                max_order_size=Decimal(max_order_size),
-                                min_price_increment=Decimal(min_price_increment),
-                                min_base_amount_increment=Decimal(min_base_amount_increment),
-                                min_notional_size=Decimal(min_notional_size)))
+                if (trading_pair.count('-') == 1):
+                    retval.append(
+                        TradingRule(trading_pair,
+                                    min_order_size=Decimal(min_order_size),
+                                    max_order_size=Decimal(max_order_size),
+                                    min_price_increment=Decimal(min_price_increment),
+                                    min_base_amount_increment=Decimal(min_base_amount_increment),
+                                    min_notional_size=Decimal(min_notional_size)))
 
             except Exception:
                 self.logger().exception(f"Error parsing the trading pair rule {rule.get('name')}. Skipping.")
